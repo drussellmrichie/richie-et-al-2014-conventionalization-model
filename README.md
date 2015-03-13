@@ -1,4 +1,4 @@
-Yang, Richie, and Coppola (2014, topiCS)
+Richie, Yang, and Coppola (2014, topiCS)
 =============================
 
 This is a Python reimplementation of the agent-based model of lexicon conventionalization in our 2014 paper. The paper can be found here:
