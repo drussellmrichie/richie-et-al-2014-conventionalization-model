@@ -10,7 +10,7 @@ terminal works, though.
 
 from multiprocessing import Pool
 import itertools
-from yang_et_al_2014_conventionalization_model import *
+from richie_et_al_2014_conventionalization_model import *
 import csv
 
 def pool_director(kwargs):

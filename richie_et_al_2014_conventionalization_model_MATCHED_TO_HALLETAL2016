@@ -1,0 +1,211 @@
+"""
+READ ME
+
+This is a re-implementation of the agent-based model of conventionalization in
+Richie, Yang, & Coppola (2013, topiCS).
+
+"""
+
+import os, string, random, numpy, networkx, math, time
+import pandas as pd
+import itertools as it
+
+os.chdir('/Users/russellrichie/yang_convent_model/richie-et-al-2014-conventionalization-model')
+
+def flip(p):
+    return 1 if random.random() < p else 0
+
+def hamming_distance(s1, s2):
+    "Return the Hamming distance between equal-length sequences."
+    return sum(ch1 != ch2 for ch1, ch2 in zip(s1, s2))    
+            
+def update(cc, p, gamma): #it has to take a single tuple argument to deal with the zipped data
+    if cc == 1:
+        new_p = p + gamma*(1 - p)
+    else:
+        new_p = (1 - gamma)*p
+    return new_p
+    
+def check_convent(nd_array,conv_crit): # there *has* to be a more efficient way to check if convent has happened yet...
+    for prob in nd_array.ravel():
+        if (prob < (1 - conv_crit)) & (prob > conv_crit):
+            return True
+    return False
+
+def pickPair(neighbors, agents, conv_scheduleCycler, conv_schedule):
+    if conv_schedule is "random":
+        speaker_ind = random.randint(0, agents-1) # pick a speaker
+        listener_ind = random.choice(neighbors[speaker_ind]) # pick a listener based on who speaker can talk to
+        return speaker_ind, listener_ind
+    else:
+        speaker_ind, listener_ind = next(conv_scheduleCycler)
+        return speaker_ind, listener_ind
+  
+def pickObject(objects, object_scheduleCycler, object_schedule):
+    if object_schedule is 'oneRandom':
+        object_ind = random.randint(0, objects-1) # pick an object
+        return object_ind 
+    elif object_schedule is 'allInSequence' or object_schedule is object_schedule is 'allInFixedRandom':
+        object_ind = next(object_scheduleCycler)
+        return object_ind
+    elif object_schedule is 'allRandom':
+        object_ind = next(object_scheduleCycler)
+        return ###
+"""
+def pickConversation(objects, object_scheduleCycler, object_schedule, neighbors, agents, conv_scheduleCycler, conv_schedule):
+    if conv_schedule is 'random' and object_schedule is 'oneRandom':
+        speaker_ind = random.randint(0, agents-1) # pick a speaker
+        listener_ind = random.choice(neighbors[speaker_ind]) # pick a listener based on who speaker can talk to
+        object_ind = random.randint(0, objects-1) # pick an object
+        return speaker_ind, listener_ind, object_ind
+    elif object_schedule is 'allInSqeuence': #This means a
+"""        
+def yang_convent_model(agents = 4, 
+                        objects = 1,
+                        conc_comp = 1, 
+                        network = 'full',
+                        rewire_prob = 0, 
+                        comm_check = 'expon decay',
+                        neighbors = 10,
+                        probs = 'uniform',
+                        gamma = .01,
+                        conv_crit = .02,
+                        simul_conv = 'no',
+                        # RR added schedule variables below; allow user to specify orders of pairs and items chosen
+                        conv_schedule = 'random',
+                        object_schedule = 'oneRandom',
+                        no_convos = 2000000,
+                        data_intervals = 'no' # may just want to change the code if actually want to use data_intervals?
+                        ):
+    """
+    The agent-based conventionalization model of Richie, Yang, and Coppola (2013, topiCS).
+    """
+    #print agents, objects, conc_comp, network, rewire_prob, comm_check # add other parameters here
+    
+    # Initialize the agents' lexicon probabilities    
+    
+    if probs == '.9 or .1':
+        listed_matrix = [random.choice((.9,.1)) for x in range(agents*objects*conc_comp)]
+        prob_matrix = numpy.reshape(listed_matrix,newshape=(agents,objects,conc_comp))
+    elif probs == 'uniform':
+        prob_matrix = numpy.random.random((agents,objects,conc_comp))
+    elif probs == '.5':
+        prob_matrix = numpy.zeros(shape=(agents,objects,conc_comp)) + .5
+    
+    # Intialize the social network
+    
+    if network == 'full':
+        social_network = networkx.complete_graph(agents)
+    elif network == 'star':
+        social_network = networkx.star_graph(agents-1)
+    elif network == 'small-world':
+        social_network = networkx.connected_watts_strogatz_graph(agents, neighbors, rewire_prob, tries=100, seed=None)
+    # can add other network possibilities here
+    neighbors = [social_network.neighbors(x) for x in range(agents)] # generate the list of neighbors which will be used for picking listeners
+
+    # make convScheduleCycler variable appropriate to conv_schedule variable
+
+    if conv_schedule is 'random':
+        conv_scheduleCycler = False
+    else: # make a cycler out of the conversation schedule
+          # conv_schedule came with agents lettered, rather than numbered, so must map letters to numbers, then put in tuples
+        alphabetDict = dict(zip(string.ascii_letters,[ord(c)%32 for c in string.ascii_letters]))
+        pairs = [(x[0].lower(),x[-1].lower()) for x in conv_schedule]
+        pairs = [(alphabetDict[x] - 1 , alphabetDict[y] - 1) for x, y in pairs]
+        conv_scheduleCycler = it.cycle(pairs)
+        print("conv_scheduleCycler made")
+    
+    # make objectScheduleCycler variable appropriate to object_schedule variable
+        
+    if object_schedule is 'oneRandom':
+        object_scheduleCycler = False
+    elif object_schedule is 'allInSequence':
+        object_scheduleCycler = it.cycle( list( range(objects) ) )
+    elif object_schedule is 'allInFixedRandom':
+        randomObjectOrder = list(range(objects))
+        random.shuffle(randomObjectOrder)
+        object_scheduleCycler = it.cycle(randomObjectOrder)
+        
+    # Run the conversations
+    if comm_check == 'expon decay':
+        for convo_ind in range(0,no_convos):
+            #time.sleep(1)
+            print(convo_ind)
+            print(prob_matrix)
+
+            # Choose speaker and listener -- if I were cleverer, I would really figure out how to modularize more
+            speaker_ind, listener_ind = pickPair(neighbors, agents, conv_scheduleCycler, conv_schedule)
+            print(speaker_ind,listener_ind)
+            
+            # Choose object(s) to be discussed
+            object_ind = pickObject(objects, object_scheduleCycler, object_schedule)
+            #if object_schedule == 'oneRandom':
+            #    object_ind = random.randint(0, objects-1) # pick an object
+            #elif object_schedule == 'allRandom':
+            #    object_ind
+                
+            speaker_string = [flip(x) for x in prob_matrix[speaker_ind, object_ind, : ]] # speaker utters a string
+            listener_string = [flip(x) for x in prob_matrix[listener_ind, object_ind, : ]] # listener utters a string
+
+            distance = hamming_distance(speaker_string,listener_string) # hamming distance between speaker's and listener's strings
+            comm_success_prob = math.e**(-distance) # probability of successful communication is exponential decay function of hamming distance
+
+            if flip(comm_success_prob) == 1: # if communication was successful, then update listener, and check if convent has happened
+                prob_matrix[listener_ind, object_ind, : ] = list(
+                                                                map(
+                                                                    update, 
+                                                                    speaker_string, prob_matrix[listener_ind, object_ind, :], [gamma]*len(speaker_string)
+                                                                    ) 
+                                                                )  #update probabilities
+                
+                if check_convent(prob_matrix,conv_crit): # check if all probs are still outside of crit value
+                    continue
+                else:
+                    break
+            else: # if communication was not successful, then continue to next conversation
+                continue
+    return [agents, 
+            objects, 
+            conc_comp,
+            network, 
+            convo_ind, 
+            networkx.average_clustering(social_network), 
+            networkx.average_shortest_path_length(social_network)]
+            #betweenness_centralization(social_network)]
+    """
+    return {'convo_ind': convo_ind, 
+            'agents': agents, 
+            'objects':objects, 
+            'conc_comp':conc_comp, 
+            'network':network, 
+            'rewire_prob':rewire_prob, 
+            'comm_check':comm_check} #prob_matrix #convo_ind should be the index of the last converation, either the one by which convent happened, or no_convos
+    """
+
+if __name__ == "__main__":
+    
+    """
+    Some code to show how all this works with social networks/communication schedules drawn from Hall, Richie, and Coppola (2016)
+    """
+    conv_schedule = 'random'
+    all_conv_schedules = pd.read_excel("HalletalConvSchedules.xlsx")
+    network = "Rich"
+    if network == "Sparse":
+        conv_schedule = all_conv_schedules["Sparse Network"].values
+    elif network == "Rich":
+        conv_schedules = all_conv_schedules.ix[:,"Rich Network_1":"Rich Network_2"]
+        conv_schedules = np.array(conv_schedules)
+        
+        # now, here is the final, linear schedule of participants to be called in yang_convent_model
+        conv_schedule = conv_schedules.ravel()
+    """
+    Note that these schedules are listed with the expecatation that agents will take turns communicating in a pair. If you DON'T
+    account for that (i.e., have each network, you'll only ever have 0 talking to 1, and not vice versa, meaning networks won't converge!
+    """
+    
+    #yang_convent_model(conv_schedule = conv_schedule) 
+    
+    """
+    The usual random selection of a new pair for every new interaction converges quickly.
+    """
+    yang_convent_model(conv_schedule = 'random')
